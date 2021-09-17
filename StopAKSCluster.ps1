@@ -1,6 +1,3 @@
-workflow StartStopAKSCluster
-{
-
     <#
     This runbook requires the Azure Automation Run-As (Service Principle) account, which must be added when creating the Azure Automation account.
     .PARAMETER  
@@ -10,13 +7,19 @@ workflow StartStopAKSCluster
         -  AKSResourceGroupName     :  ResourceGroup that contains VMs to be stopped. Must be in the same subscription that the Azure Automation Run-As account has permission to manage.
  #>
 
+<#
     Param(
         [Parameter(Mandatory=$true,HelpMessage="Enter the name of the Cluster AKS")][String]$AKSClusterName,
         [Parameter(Mandatory=$true,HelpMessage="Enter the Resource Group Name where the cluster is")][String]$AKSResourceGroupName,
         [Parameter(Mandatory=$true,HelpMessage="Enter the action to execute (Start/Stop")][String]$Action
     )
-
+#>
+  
     # Login in Azure
+
+    $AKSClusterName = "AKSTest"
+    $AKSResourceGroupName = "RG-AKS-Test"
+    $Action="stop"
  
         $connectionName = "AzureRunAsConnection"
         try
@@ -96,4 +99,6 @@ else{
         }
     }
 }
-}
+
+
+
