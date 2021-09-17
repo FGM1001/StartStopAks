@@ -1,38 +1,99 @@
-<#
+workflow StartStopAKSCluster
+{
 
-    .SYNOPSIS
-    Script to stop a AKS cluster
+    <#
+    This runbook requires the Azure Automation Run-As (Service Principle) account, which must be added when creating the Azure Automation account.
+    .PARAMETER  
+        Parameters are read in from Azure Automation variables.  
+        Variables (editable):
+        -  AKSClusterName           :  ResourceGroup that contains VMs to be started. Must be in the same subscription that the Azure Automation Run-As account has permission to manage.
+        -  AKSResourceGroupName     :  ResourceGroup that contains VMs to be stopped. Must be in the same subscription that the Azure Automation Run-As account has permission to manage.
+ #>
 
-    .DESCRIPTION
+    Param(
+        [Parameter(Mandatory=$true,HelpMessage="Enter the name of the Cluster AKS")][String]$AKSClusterName,
+        [Parameter(Mandatory=$true,HelpMessage="Enter the Resource Group Name where the cluster is")][String]$AKSResourceGroupName,
+        [Parameter(Mandatory=$true,HelpMessage="Enter the action to execute (Start/Stop")][String]$Action
+    )
 
-    
+    # Login in Azure
+ 
+        $connectionName = "AzureRunAsConnection"
+        try
+        {
+            # Get the connection "AzureRunAsConnection "
+            $servicePrincipalConnection=Get-AutomationConnection -Name $connectionName         
+            Add-AzAccount `
+                -ServicePrincipal `
+                -TenantId $servicePrincipalConnection.TenantId `
+                -ApplicationId $servicePrincipalConnection.ApplicationId `
+                -CertificateThumbprint $servicePrincipalConnection.CertificateThumbprint 
+        
+            Write-Output "Successfully logged into Azure subscription using Az cmdlets..."
+        }
+        catch 
+        {
+            if (!$servicePrincipalConnection)
+            {
+                $ErrorMessage = "Connection $connectionName not found."
+                $RetryFlag = $false
+                throw $ErrorMessage
+            }
+            if ($Attempt -gt $RetryCount) 
+            {
+                Write-Output "$FailureMessage! Total retry attempts: $RetryCount"
+                Write-Output "[Error Message] $($_.exception.message) `n"
+                $RetryFlag = $false
+            }
+            else 
+            {
+                Write-Output "[$Attempt/$RetryCount] $FailureMessage. Retrying in $TimeoutInSecs seconds..."
+                Start-Sleep -Seconds $TimeoutInSecs
+                $Attempt = $Attempt + 1
+            }   
+        }
 
 
-#>
+# Test Parameters
 
+$Action=$Action.toLower()
+$Context = Get-azcontext
+$SubscriptionId = $Context.subscription.id 
 
-<#
-param(
-    [Parameter(Mandatory = $true)][string]$AKSClusterName
-    [Parameter(Mandatory = $true)][string]$AKSResourceGroupName
-) 
-
-#>
-
-$AKSClusterName="AKSTest"
-$AKSResourceGroupName="RG-AKS-Test"
-$TenantID ="82f9ff5f-776f-4b4e-93e9-12839b767108"
-$SubscriptionID = '376657bb-7cc3-4f52-b1e7-eb78c56b1802'
-
-Login-AzAccount -Verbose
-
-
-Set-AzContext -name "Microsoft Azure Enterprise (9a40f535-76b0-4123-ba2b-4bcf670be528) - dbb21a28-035f-42c1-b1b7-f8918f6416a4 - FMingo@kabel.es"
-Set-AzContext -Tenant $TenantID
-$Subscription =  Get-AzSubscription -SubscriptionId $SubscriptionID
-Select-AzSubscription -Subscription $Subscription
-$AKSCluster = Get-AzAksCluster -ResourceGroupName $AKSResourceGroupName -Name $AKSClusterName
-
-
-
-Get-AzAksCluster
+if ($Action -match "start"){
+    try{
+        $AKSCluster = Get-AzAksCluster -ResourceGroupName $AKSResourceGroupName -Name $AKSClusterName -Verbose -ErrorAction SilentlyContinue    
+        Write-output "Cluster $AKSClusterName exist."
+    }
+    catch{
+        Write-output "ERROR. Cluster $AKSClusterName not found."
+        Write-Output $_.Exception
+    }
+    try{
+        start-akscluster -ResourceGroupName $AKSResourceGroupName -subscriptionid $SubscriptionId -name $AKSClusterName -ErrorAction silentlycontinue -verbose
+    }
+    catch{
+        Write-output "Error. Starting cluster $AKSClusterName failed"
+        Write-Output $_.Exception
+    }
+}
+else{
+    if ($Action -match "stop"){
+        try{
+            $AKSCluster = Get-AzAksCluster -ResourceGroupName $AKSResourceGroupName -Name $AKSClusterName -Verbose -ErrorAction SilentlyContinue
+            Write-output "Cluster $AKSClusterName exist."
+        }
+        catch{
+            Write-output "ERROR. Cluster $AKSClusterName not found."
+            Write-Output $_.Exception
+        }
+        try{
+            stop-akscluster -ResourceGroupName $AKSResourceGroupName -subscriptionid $SubscriptionId -name $AKSClusterName -ErrorAction silentlycontinue -verbose
+        }
+        catch{
+            Write-output "Error. Starting cluster $AKSClusterName failed"
+            Write-Output $_.Exception
+        }
+    }
+}
+}
