@@ -17,10 +17,13 @@
   
     # Login in Azure
 
-    $AKSClusterName = ""
-    $AKSResourceGroupName = ""
-    $Action="start"
+$AKSClusterName = ""
+$AKSResourceGroupName = ""
+$Action="start"
+$Attempt = 0
+$MaxAttempts = 4
  
+    Do{
         $connectionName = "AzureRunAsConnection"
         try
         {
@@ -39,23 +42,21 @@
             if (!$servicePrincipalConnection)
             {
                 $ErrorMessage = "Connection $connectionName not found."
-                $RetryFlag = $false
-                throw $ErrorMessage
+                Write-Output $ErrorMessage
             }
-            if ($Attempt -gt $RetryCount) 
+            if ($Attempt -gt $MaxAttempts) 
             {
-                Write-Output "$FailureMessage! Total retry attempts: $RetryCount"
+                Write-Output "$FailureMessage! Total retry attempts: $MaxAttempts"
                 Write-Output "[Error Message] $($_.exception.message) `n"
-                $RetryFlag = $false
             }
             else 
             {
-                Write-Output "[$Attempt/$RetryCount] $FailureMessage. Retrying in $TimeoutInSecs seconds..."
-                Start-Sleep -Seconds $TimeoutInSecs
-                $Attempt = $Attempt + 1
+                Write-Output "[$Attempt/$MaxAttempts] $FailureMessage. Retrying in 5 seconds..."
+                Start-Sleep -Seconds 5
+                $Attempt++
             }   
         }
-
+    }while ($Attempt -le 3)
 
 # Test Parameters
 
@@ -63,27 +64,14 @@ $Action=$Action.toLower()
 $Context = Get-azcontext
 $SubscriptionId = $Context.subscription.id 
 
-if ($Action -match "start"){
-    try{
-        $AKSCluster = Get-AzAksCluster -ResourceGroupName $AKSResourceGroupName -Name $AKSClusterName -Verbose -ErrorAction SilentlyContinue    
-        Write-output "Cluster $AKSClusterName exist."
-    }
-    catch{
-        Write-output "ERROR. Cluster $AKSClusterName not found."
-        Write-Output $_.Exception
-    }
-    try{
-        Start-AzAksCluster -ResourceGroupName $AKSResourceGroupName -SubscriptionId $SubscriptionId -Name $AKSClusterName -ErrorAction SilentlyContinue -verbose
-    }
-    catch{
-        Write-output "Error. Starting cluster $AKSClusterName failed"
-        Write-Output $_.Exception
-    }
-}
-else{
-    if ($Action -match "stop"){
+$LaborDays=@('Monday', 'Tuesday','Wednesday','Thursday','Friday')
+$Date = Get-Date
+[string]$DayofWeek = $Date.DayOfWeek
+
+if ($LaborDays -contains $DayofWeek){
+    if ($Action -match "start"){
         try{
-            $AKSCluster = Get-AzAksCluster -ResourceGroupName $AKSResourceGroupName -Name $AKSClusterName -Verbose -ErrorAction SilentlyContinue
+            $AKSCluster = Get-AzAksCluster -ResourceGroupName $AKSResourceGroupName -Name $AKSClusterName -Verbose -ErrorAction SilentlyContinue    
             Write-output "Cluster $AKSClusterName exist."
         }
         catch{
@@ -91,14 +79,32 @@ else{
             Write-Output $_.Exception
         }
         try{
-            stop-akscluster -ResourceGroupName $AKSResourceGroupName -subscriptionid $SubscriptionId -name $AKSClusterName -ErrorAction silentlycontinue -verbose
+            Start-AzAksCluster -ResourceGroupName $AKSResourceGroupName -SubscriptionId $SubscriptionId -Name $AKSClusterName -ErrorAction SilentlyContinue -verbose
         }
         catch{
             Write-output "Error. Starting cluster $AKSClusterName failed"
             Write-Output $_.Exception
         }
     }
+    else{
+        if ($Action -match "stop"){
+            try{
+                $AKSCluster = Get-AzAksCluster -ResourceGroupName $AKSResourceGroupName -Name $AKSClusterName -Verbose -ErrorAction SilentlyContinue
+                Write-output "Cluster $AKSClusterName exist."
+            }
+            catch{
+                Write-output "ERROR. Cluster $AKSClusterName not found."
+                Write-Output $_.Exception
+            }
+            try{
+                stop-akscluster -ResourceGroupName $AKSResourceGroupName -subscriptionid $SubscriptionId -name $AKSClusterName -ErrorAction silentlycontinue -verbose
+            }
+            catch{
+                Write-output "Error. Starting cluster $AKSClusterName failed"
+                Write-Output $_.Exception
+            }
+        }
+    }
 }
-
 
 

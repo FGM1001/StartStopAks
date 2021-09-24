@@ -19,85 +19,96 @@
 
     $AKSClusterName = ""
     $AKSResourceGroupName = ""
-    $Action="stop"
- 
-        $connectionName = "AzureRunAsConnection"
-        try
-        {
-            # Get the connection "AzureRunAsConnection "
-            $servicePrincipalConnection=Get-AutomationConnection -Name $connectionName         
-            Add-AzAccount `
-                -ServicePrincipal `
-                -TenantId $servicePrincipalConnection.TenantId `
-                -ApplicationId $servicePrincipalConnection.ApplicationId `
-                -CertificateThumbprint $servicePrincipalConnection.CertificateThumbprint 
-        
-            Write-Output "Successfully logged into Azure subscription using Az cmdlets..."
-        }
-        catch 
-        {
-            if (!$servicePrincipalConnection)
+    $Action="start"
+    $Attempt = 0
+    $MaxAttempts = 4
+     
+        Do{
+            $connectionName = "AzureRunAsConnection"
+            try
             {
-                $ErrorMessage = "Connection $connectionName not found."
-                $RetryFlag = $false
-                throw $ErrorMessage
+                # Get the connection "AzureRunAsConnection "
+                $servicePrincipalConnection=Get-AutomationConnection -Name $connectionName         
+                Add-AzAccount `
+                    -ServicePrincipal `
+                    -TenantId $servicePrincipalConnection.TenantId `
+                    -ApplicationId $servicePrincipalConnection.ApplicationId `
+                    -CertificateThumbprint $servicePrincipalConnection.CertificateThumbprint 
+            
+                Write-Output "Successfully logged into Azure subscription using Az cmdlets..."
+                break
             }
-            if ($Attempt -gt $RetryCount) 
+            catch 
             {
-                Write-Output "$FailureMessage! Total retry attempts: $RetryCount"
-                Write-Output "[Error Message] $($_.exception.message) `n"
-                $RetryFlag = $false
+                if (!$servicePrincipalConnection)
+                {
+                    $ErrorMessage = "Connection $connectionName not found."
+                    Write-Output $ErrorMessage
+                }
+                if ($Attempt -gt $MaxAttempts) 
+                {
+                    Write-Output "$FailureMessage! Total retry attempts: $MaxAttempts"
+                    Write-Output "[Error Message] $($_.exception.message) `n"
+                }
+                else 
+                {
+                    Write-Output "[$Attempt/$MaxAttempts] $FailureMessage. Retrying in 5 seconds..."
+                    Start-Sleep -Seconds 5
+                    $Attempt++
+                }   
             }
-            else 
-            {
-                Write-Output "[$Attempt/$RetryCount] $FailureMessage. Retrying in $TimeoutInSecs seconds..."
-                Start-Sleep -Seconds $TimeoutInSecs
-                $Attempt = $Attempt + 1
-            }   
+        }while ($Attempt -le 3)
+    
+    # Test Parameters
+    
+    $Action=$Action.toLower()
+    $Context = Get-azcontext
+    $SubscriptionId = $Context.subscription.id 
+    
+    $LaborDays=@('Monday', 'Tuesday','Wednesday','Thursday','Friday')
+    $Date = Get-Date
+    [string]$DayofWeek = $Date.DayOfWeek
+    
+    if ($LaborDays -contains $DayofWeek){
+        if ($Action -match "start"){
+            try{
+                $AKSCluster = Get-AzAksCluster -ResourceGroupName $AKSResourceGroupName -Name $AKSClusterName -Verbose -ErrorAction SilentlyContinue    
+                Write-output "Cluster $AKSClusterName exist."
+            }
+            catch{
+                Write-output "ERROR. Cluster $AKSClusterName not found."
+                Write-Output $_.Exception
+            }
+            try{
+                Start-AzAksCluster -ResourceGroupName $AKSResourceGroupName -SubscriptionId $SubscriptionId -Name $AKSClusterName -ErrorAction SilentlyContinue -verbose
+            }
+            catch{
+                Write-output "Error. Starting cluster $AKSClusterName failed"
+                Write-Output $_.Exception
+            }
         }
-
-
-# Test Parameters
-
-$Action=$Action.toLower()
-$Context = Get-azcontext
-$SubscriptionId = $Context.subscription.id 
-
-if ($Action -match "start"){
-    try{
-        $AKSCluster = Get-AzAksCluster -ResourceGroupName $AKSResourceGroupName -Name $AKSClusterName -Verbose -ErrorAction SilentlyContinue    
-        Write-output "Cluster $AKSClusterName exist."
-    }
-    catch{
-        Write-output "ERROR. Cluster $AKSClusterName not found."
-        Write-Output $_.Exception
-    }
-    try{
-        Start-AzAksCluster -ResourceGroupName $AKSResourceGroupName -SubscriptionId $SubscriptionId -Name $AKSClusterName -ErrorAction SilentlyContinue -verbose
-    }
-    catch{
-        Write-output "Error. Starting cluster $AKSClusterName failed"
-        Write-Output $_.Exception
-    }
-}
-else{
-    if ($Action -match "stop"){
-        try{
-            $AKSCluster = Get-AzAksCluster -ResourceGroupName $AKSResourceGroupName -Name $AKSClusterName -Verbose -ErrorAction SilentlyContinue
-            Write-output "Cluster $AKSClusterName exist."
-        }
-        catch{
-            Write-output "ERROR. Cluster $AKSClusterName not found."
-            Write-Output $_.Exception
-        }
-        try{
-            stop-akscluster -ResourceGroupName $AKSResourceGroupName -subscriptionid $SubscriptionId -name $AKSClusterName -ErrorAction silentlycontinue -verbose
-        }
-        catch{
-            Write-output "Error. Starting cluster $AKSClusterName failed"
-            Write-Output $_.Exception
+        else{
+            if ($Action -match "stop"){
+                try{
+                    $AKSCluster = Get-AzAksCluster -ResourceGroupName $AKSResourceGroupName -Name $AKSClusterName -Verbose -ErrorAction SilentlyContinue
+                    Write-output "Cluster $AKSClusterName exist."
+                }
+                catch{
+                    Write-output "ERROR. Cluster $AKSClusterName not found."
+                    Write-Output $_.Exception
+                }
+                try{
+                    Stop-AzAksCluster -ResourceGroupName $AKSResourceGroupName -subscriptionid $SubscriptionId -name $AKSClusterName -ErrorAction silentlycontinue -verbose
+                }
+                catch{
+                    Write-output "Error. Starting cluster $AKSClusterName failed"
+                    Write-Output $_.Exception
+                }
+            }
         }
     }
-}
+    
+    
+    
 
 
