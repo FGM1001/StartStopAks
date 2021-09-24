@@ -19,7 +19,7 @@
 
     $AKSClusterName = ""
     $AKSResourceGroupName = ""
-    $Action="stop"
+    $Action="start"
  
         $connectionName = "AzureRunAsConnection"
         try
@@ -99,5 +99,6 @@ else{
         }
     }
 }
+
 
 

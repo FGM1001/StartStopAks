@@ -73,7 +73,7 @@ if ($Action -match "start"){
         Write-Output $_.Exception
     }
     try{
-        start-akscluster -ResourceGroupName $AKSResourceGroupName -subscriptionid $SubscriptionId -name $AKSClusterName -ErrorAction silentlycontinue -verbose
+        Start-AzAksCluster -ResourceGroupName $AKSResourceGroupName -SubscriptionId $SubscriptionId -Name $AKSClusterName -ErrorAction SilentlyContinue -verbose
     }
     catch{
         Write-output "Error. Starting cluster $AKSClusterName failed"
