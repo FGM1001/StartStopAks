@@ -11,8 +11,8 @@
   
     # Login in Azure
 
-    $AKSClusterName = "AKSTest"
-    $AKSResourceGroupName = "RG-AKS-Test"
+    $AKSClusterName = ""
+    $AKSResourceGroupName = ""
     $Action="start"
     $Attempt = 0
     $MaxAttempts = 4
@@ -101,8 +101,3 @@
             }
         }
     }
-    
-    
-    
-
-
